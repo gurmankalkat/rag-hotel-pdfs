@@ -83,40 +83,50 @@ export default function Proposals() {
   
     const uploadedFiles = await Promise.all(
       newFiles.map(async (file) => {
-        const formData = new FormData();
-        formData.append("file", file);
-  
         try {
-          // Upload file to backend or storage
-          const { data } = await axios.post("http://localhost:5001/upload", formData, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          });
+          // Upload file to Supabase Storage
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("proposals")
+            .upload(`uploads/${file.name}`, file);
   
-          // The backend should return a valid file path or URL
+          if (uploadError) {
+            console.error("Error uploading file:", uploadError);
+            return null; // Return null for failed uploads
+          }
+  
+          // Get the public URL of the uploaded file
+          const { data: publicUrlData } = supabase.storage
+            .from("proposals")
+            .getPublicUrl(`uploads/${file.name}`);
+  
+          if (!publicUrlData.publicUrl) {
+            console.error("Error fetching public URL for file");
+            return null;
+          }
+  
           return {
             name: file.name,
             size: file.size,
             lastModified: new Date(file.lastModified).toLocaleDateString(),
-            url: data.filePath, // Use the returned file path or URL
+            url: publicUrlData.publicUrl, // Use the returned public URL
             isGenerated: false,
-            loading: false, // Ensure loading is always a boolean
+            loading: false,
           } as UploadedFile; // Explicitly cast to UploadedFile
         } catch (error) {
-          console.error("Error uploading file:", error);
-          return null;
+          console.error("Error processing file upload:", error);
+          return null; // Return null for failed uploads
         }
       })
     );
   
-    setFiles((prevFiles) => [
-      ...prevFiles,
-      ...uploadedFiles.filter((file): file is UploadedFile => file !== null) as UploadedFile[],
-    ]);
-  };
+    // Ensure we filter out `null` values and cast the result to UploadedFile[]
+    const validUploadedFiles: UploadedFile[] = uploadedFiles.filter(
+      (file): file is UploadedFile => file !== null
+    );
   
-
+    setFiles((prevFiles) => [...prevFiles, ...validUploadedFiles]);
+  };  
+  
   const triggerFileInput = () => {
     const fileInput = document.getElementById("file-upload");
     if (fileInput) {
@@ -132,26 +142,25 @@ export default function Proposals() {
       )
     );
   
-    // Use the latest state to access the file
+    // Access the file from the state
     const file = files[index];
   
     try {
-      // Send a POST request to the backend with the file path
+      // Send the file's public URL to the backend for processing
       const response = await axios.post("http://localhost:5001/generate", {
         name: file.name,
-        path: file.url, // Pass the file path or storage URL
+        url: file.url, // Pass the public URL to the backend
       });
   
       console.log("Returned JSON from Backend:", response.data);
   
       const { final_totals = [], explanations = [] } = response.data;
   
-      // Validate response data
       if (final_totals.length === 0 || explanations.length === 0) {
         throw new Error("Incomplete data received from backend");
       }
   
-      // Update the file with generated values
+      // Update the file with the generated values
       const updatedFile = {
         ...file,
         totalQuote: final_totals[0] || "-",
@@ -169,7 +178,7 @@ export default function Proposals() {
         prevFiles.map((f, i) => (i === index ? updatedFile : f))
       );
   
-      // Save the data to Supabase
+      // Save the generated values to Supabase
       const { error } = await supabase.from("proposals").insert([
         {
           name: updatedFile.name,
@@ -186,7 +195,7 @@ export default function Proposals() {
       if (error) {
         console.error("Error saving to Supabase:", error);
       } else {
-        console.log("File data saved to Supabase:", updatedFile);
+        console.log("Data saved to Supabase:", updatedFile);
       }
     } catch (error) {
       console.error("Error generating values:", error);
@@ -198,7 +207,8 @@ export default function Proposals() {
         )
       );
     }
-  };  
+  };
+  
 
   return (
     <Card>

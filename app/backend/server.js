@@ -10,10 +10,14 @@ app.use(cors());
 app.use(bodyParser.json());
 
 app.post("/generate", (req, res) => {
-    const { name, size } = req.body;
+    const { url, size } = req.body;
 
-    // Spawn a Python process and pass the name and size as arguments
-    const pythonProcess = spawn("python", ["generation_algo.py", name, size]);
+    if (!url) {
+        return res.status(400).json({ error: "File URL is required" });
+    }
+
+    // Spawn a Python process and pass the URL and size as arguments
+    const pythonProcess = spawn("python", ["generation_algo.py", url, size]);
 
     let output = "";
 
@@ -28,7 +32,7 @@ app.post("/generate", (req, res) => {
     pythonProcess.on("close", (code) => {
         if (code === 0) {
             try {
-                console.log(output)
+                console.log("Python output:", output);
                 const result = JSON.parse(output.trim()); // Parse the JSON output
                 res.json(result);
             } catch (error) {
