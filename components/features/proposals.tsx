@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"; // Hovercard components
+import { supabase } from "@/lib/supabase";
 
 // Define an interface for the file object
 interface UploadedFile {
@@ -37,31 +38,84 @@ interface UploadedFile {
   totalQuoteExplanation?: string;
   meetingRoomExplanation?: string;
   sleepingRoomExplanation?: string;
-  isGenerated?: boolean;
+  isGenerated: boolean;
   loading?: boolean; // Track loading state
 }
 
 export default function Proposals() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  /*
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data, error } = await supabase.from("proposals").select("*");
+      if (error) {
+        console.error("Error fetching data from Supabase:", error);
+      } else {
+        console.log("Fetched data from Supabase:", data);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        // Map the data to match the `UploadedFile` interface
+        const fetchedFiles = data.map((row) => ({
+          id: row.id,
+          name: row.name,
+          url: row.url,
+          totalQuote: row.total_quote,
+          meetingRoomTotal: row.meeting_room_total,
+          sleepingRoomTotal: row.sleeping_room_total,
+          totalQuoteExplanation: row.total_quote_explanation,
+          meetingRoomExplanation: row.meeting_room_explanation,
+          sleepingRoomExplanation: row.sleeping_room_explanation,
+          isGenerated: true, // Since these are from the database, assume generated
+          loading: false, // Not loading anymore
+        }));
+
+        // Update state with fetched files
+        setFiles(fetchedFiles);
+      }
+    };
+
+    fetchData();
+  }, []);
+  */
+  
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const newFiles = event.target.files ? Array.from(event.target.files) : [];
     if (newFiles.length === 0) return;
-
+  
+    const uploadedFiles = await Promise.all(
+      newFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+  
+        try {
+          // Upload file to backend or storage
+          const { data } = await axios.post("http://localhost:5001/upload", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+  
+          // The backend should return a valid file path or URL
+          return {
+            name: file.name,
+            size: file.size,
+            lastModified: new Date(file.lastModified).toLocaleDateString(),
+            url: data.filePath, // Use the returned file path or URL
+            isGenerated: false,
+            loading: false, // Ensure loading is always a boolean
+          } as UploadedFile; // Explicitly cast to UploadedFile
+        } catch (error) {
+          console.error("Error uploading file:", error);
+          return null;
+        }
+      })
+    );
+  
     setFiles((prevFiles) => [
       ...prevFiles,
-      ...newFiles.map((file) => ({
-        name: file.name,
-        size: file.size,
-        lastModified: new Date(file.lastModified).toLocaleDateString(),
-        url: URL.createObjectURL(file),
-        isGenerated: false,
-        loading: false, // Initially, not loading
-      })),
+      ...uploadedFiles.filter((file): file is UploadedFile => file !== null) as UploadedFile[],
     ]);
-
-    console.log("Uploaded files:", newFiles);
   };
+  
 
   const triggerFileInput = () => {
     const fileInput = document.getElementById("file-upload");
@@ -71,33 +125,33 @@ export default function Proposals() {
   };
 
   const generateValues = async (index: number) => {
+    // Set loading state for the specific file
     setFiles((prevFiles) =>
       prevFiles.map((file, i) =>
         i === index ? { ...file, loading: true } : file
       )
     );
-
+  
+    // Use the latest state to access the file
     const file = files[index];
+  
     try {
+      // Send a POST request to the backend with the file path
       const response = await axios.post("http://localhost:5001/generate", {
         name: file.name,
-        size: file.size,
+        path: file.url, // Pass the file path or storage URL
       });
-
+  
       console.log("Returned JSON from Backend:", response.data);
-
-      const {
-        final_totals = [],
-        explanations = [], // Default to empty array if undefined
-      } = response.data;
-
-      const hasData = final_totals.length && explanations.length;
-
-      if (!hasData) {
-        console.error("Incomplete data received from backend:", response.data);
-        return;
+  
+      const { final_totals = [], explanations = [] } = response.data;
+  
+      // Validate response data
+      if (final_totals.length === 0 || explanations.length === 0) {
+        throw new Error("Incomplete data received from backend");
       }
-
+  
+      // Update the file with generated values
       const updatedFile = {
         ...file,
         totalQuote: final_totals[0] || "-",
@@ -107,22 +161,44 @@ export default function Proposals() {
         meetingRoomExplanation: explanations[1] || "No explanation available",
         sleepingRoomExplanation: explanations[2] || "No explanation available",
         isGenerated: true,
-        loading: false, // Set loading to false after processing
+        loading: false,
       };
-
+  
+      // Update the state with the new values
       setFiles((prevFiles) =>
         prevFiles.map((f, i) => (i === index ? updatedFile : f))
       );
+  
+      // Save the data to Supabase
+      const { error } = await supabase.from("proposals").insert([
+        {
+          name: updatedFile.name,
+          url: updatedFile.url,
+          total_quote: updatedFile.totalQuote,
+          meeting_room_total: updatedFile.meetingRoomTotal,
+          sleeping_room_total: updatedFile.sleepingRoomTotal,
+          total_quote_explanation: updatedFile.totalQuoteExplanation,
+          meeting_room_explanation: updatedFile.meetingRoomExplanation,
+          sleeping_room_explanation: updatedFile.sleepingRoomExplanation,
+        },
+      ]);
+  
+      if (error) {
+        console.error("Error saving to Supabase:", error);
+      } else {
+        console.log("File data saved to Supabase:", updatedFile);
+      }
     } catch (error) {
       console.error("Error generating values:", error);
-
+  
+      // Reset loading state in case of an error
       setFiles((prevFiles) =>
         prevFiles.map((f, i) =>
           i === index ? { ...f, loading: false } : f
         )
       );
     }
-  };
+  };  
 
   return (
     <Card>
@@ -182,7 +258,7 @@ export default function Proposals() {
                       <HoverCardTrigger>
                         <span>{file.totalQuote || "-"}</span>
                       </HoverCardTrigger>
-                      <HoverCardContent className="max-w-[400px] min-w-[200px] max-h-[300px] overflow-auto p-4 shadow-md rounded-lg bg-white">
+                      <HoverCardContent className="max-w-[4j 00px] min-w-[200px] max-h-[300px] overflow-auto p-4 shadow-md rounded-lg bg-white">
                         {file.totalQuoteExplanation || "No explanation available"}
                       </HoverCardContent>
                     </HoverCard>
@@ -196,7 +272,7 @@ export default function Proposals() {
                       <HoverCardTrigger>
                         <span>{file.meetingRoomTotal || "-"}</span>
                       </HoverCardTrigger>
-                      <HoverCardContent>
+                      <HoverCardContent className="max-w-[4j 00px] min-w-[200px] max-h-[300px] overflow-auto p-4 shadow-md rounded-lg bg-white">
                         {file.meetingRoomExplanation || "No explanation available"}
                       </HoverCardContent>
                     </HoverCard>
@@ -210,7 +286,7 @@ export default function Proposals() {
                       <HoverCardTrigger>
                         <span>{file.sleepingRoomTotal || "-"}</span>
                       </HoverCardTrigger>
-                      <HoverCardContent>
+                      <HoverCardContent className="max-w-[4j 00px] min-w-[200px] max-h-[300px] overflow-auto p-4 shadow-md rounded-lg bg-white">
                         {file.sleepingRoomExplanation || "No explanation available"}
                       </HoverCardContent>
                     </HoverCard>
