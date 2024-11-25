@@ -44,7 +44,7 @@ interface UploadedFile {
 
 export default function Proposals() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  /*
+  
   useEffect(() => {
     const fetchData = async () => {
       const { data, error } = await supabase.from("proposals").select("*");
@@ -66,6 +66,8 @@ export default function Proposals() {
           sleepingRoomExplanation: row.sleeping_room_explanation,
           isGenerated: true, // Since these are from the database, assume generated
           loading: false, // Not loading anymore
+          size: row.size, // Add size property
+          lastModified: new Date(row.last_modified).toLocaleDateString(), // Add lastModified property
         }));
 
         // Update state with fetched files
@@ -75,7 +77,7 @@ export default function Proposals() {
 
     fetchData();
   }, []);
-  */
+
   
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const newFiles = event.target.files ? Array.from(event.target.files) : [];
