@@ -85,7 +85,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     pdf_url = sys.argv[1]
-    size = int(sys.argv[2])  # Example: File size or other input metric
+    size = sys.argv[2] if len(sys.argv) > 2 else "1" 
 
     try:
         result = calculate_totals(size, pdf_url)
