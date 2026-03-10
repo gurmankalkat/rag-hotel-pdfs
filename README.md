@@ -1,8 +1,19 @@
 ## Overview 
 
-The portal allows users to upload a PDF, process it with a custom extraction algorithm, and store the extracted data in Supabase. The extracted data is displayed on the portal for easy access. On hover, users can view explanations of the values or gain insight into how GPT-4o derived them.
+A document intelligence portal for analyzing hotel proposal PDFs.
 
-The code includes a significant amount of placeholder or "dummy" content to illustrate what a fully functional dashboard could look like. Not all features are operational and these elements are included for showcasing purposes.
+This project lets users upload hotel PDFs, run an extraction pipeline on the document, and view structured outputs in a dashboard. Extracted values are stored in Supabase, and users can hover over results to see explanations of what was extracted and how the model derived each value.
+
+## What it does
+
+Hotel proposals are often long, inconsistent, and time-consuming to review manually. This project helps turn those PDFs into structured, searchable information.
+
+With this portal, a user can:
+- Upload a hotel proposal PDF
+- Run an extraction process to identify key values
+- Store extracted results in a database
+- View totals and structured outputs in the UI
+- Hover over values to see explanation details for how the result was generated
 
 ## Getting Started
 1. Run `npm init -y`
