@@ -4,7 +4,7 @@ A document intelligence portal for analyzing hotel proposal PDFs.
 
 This project lets users upload hotel PDFs, run an extraction pipeline on the document, and view structured outputs in a dashboard. Extracted values are stored in Supabase, and users can hover over results to see explanations of what was extracted and how the model derived each value.
 
-## What it does
+## What It Does
 
 Hotel proposals are often long, inconsistent, and time-consuming to review manually. This project helps turn those PDFs into structured, searchable information.
 
